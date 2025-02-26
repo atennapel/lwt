@@ -58,7 +58,7 @@ function updateOutput() {
 (async () => {
   let access = await navigator.requestMIDIAccess();
 
-  Tone.setContext(new Tone.Context({ latencyHint : "interactive" }));
+  Tone.setContext(new Tone.Context({ latencyHint: "interactive" }));
 
   for (let device of access.inputs.values())
     device.onmidimessage = msg => onMidiMessage(msg, synths[synthNo]);
@@ -110,10 +110,10 @@ function updateOutput() {
           case "h": i = 13; break;
           case "j": i = 14; break;
           case "k": i = 15; break;
-          
+
           case "ArrowRight": sequenceNo = (sequenceNo + 1) % 16; break;
           case "ArrowLeft": sequenceNo--; if (sequenceNo < 0) sequenceNo = 15; break;
-          
+
           default: break;
         }
 
