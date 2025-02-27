@@ -1,11 +1,14 @@
 import * as Tone from "tone";
+import { SynthInstrument } from "./SynthInstrument";
+import { PolySynthInstrument } from "./PolySynthInstrument";
+import { Instrument } from "./Instrument";
 
 window.addEventListener("load", () => {
   let clicked = false;
   let beat = 0;
   let playing = false;
   let selected = 0;
-  const steps = new Array(16);
+  const steps: (Tone.Unit.MidiNote | null)[] = new Array(16);
 
   const output = document.getElementById("output")!;
   output.innerText = "Click here";
@@ -30,13 +33,37 @@ window.addEventListener("load", () => {
     await Tone.start();
     console.log("Started Tone");
 
+    const synth = new SynthInstrument().toDestination();
+
+    let activeSynth: Instrument | null = null;
+
     const transport = Tone.getTransport()
     transport.bpm.value = 120;
     transport.scheduleRepeat(tick, "16n");
 
-    const synth = new Tone.PolySynth().toDestination();
+    const noteActive: Map<Tone.Unit.MidiNote, boolean> = new Map();
 
-    const noteActive: Map<string, boolean> = new Map();
+    const instrumentArea = document.getElementById("instrument")!;
+    document.getElementById("load_instrument")!.addEventListener("click", () => {
+      const txt = instrumentArea.innerText;
+      console.log(txt);
+      activeSynth = new PolySynthInstrument().toDestination();
+    });
+
+    document.getElementById("midi")!.addEventListener("click", async () => {
+      let access = await navigator.requestMIDIAccess();
+      for (let device of access.inputs.values()) device.onmidimessage = onMidiMessage;
+      function onMidiMessage(msg: MIDIMessageEvent) {
+        let [id, note, vel] = msg.data!;
+        let NOTE_ON = 144;
+        let NOTE_OFF = 128;
+        if (id == NOTE_ON) {
+          activeSynth?.attack([note as Tone.Unit.MidiNote], vel / 127 * 0.8);
+        } else if (id == NOTE_OFF) {
+          activeSynth?.release([note as Tone.Unit.MidiNote]);
+        }
+      }
+    });
 
     window.addEventListener("keydown", event => {
       if (event.key == " ") {
@@ -65,20 +92,22 @@ window.addEventListener("load", () => {
           draw();
         }
       } else if (event.key == "ArrowLeft") {
-        if (steps[selected] && steps[selected] > 12) {
-          steps[selected]--;
+        const current = steps[selected];
+        if (current && current > 12) {
+          steps[selected]!--;
           draw();
         }
       } else if (event.key == "ArrowRight") {
-        if (steps[selected] && steps[selected] < 127) {
-          steps[selected]++;
+        const current = steps[selected];
+        if (current && current < 127) {
+          steps[selected]!++;
           draw();
         }
       } else {
         var note = keyToNote(event.key);
         if (note && !noteActive.get(note)) {
           noteActive.set(note, true);
-          synth.triggerAttack(note);
+          activeSynth?.attack([note], 0.8);
         }
       }
     });
@@ -87,14 +116,14 @@ window.addEventListener("load", () => {
       var note = keyToNote(event.key);
       if (note && noteActive.get(note)) {
         noteActive.set(note, false);
-        synth.triggerRelease(note);
+        activeSynth?.release([note]);
       }
     });
 
     function tick(time: Tone.Unit.Seconds) {
       beat = (beat + 1) % 16;
-      if (steps[beat])
-        synth.triggerAttackRelease(Tone.Frequency(steps[beat], "midi").toNote(), "16n", time);
+      const current = steps[beat];
+      if (current) synth.attackRelease([current], "8n", 0.8, time);
       draw();
     }
 
@@ -102,21 +131,21 @@ window.addEventListener("load", () => {
   });
 });
 
-function keyToNote(key: string): string | null {
+function keyToNote(key: string): Tone.Unit.MidiNote | null {
   switch (key) {
-    case "z": return "C4";
-    case "s": return "C#4";
-    case "x": return "D4";
-    case "d": return "D#4";
-    case "c": return "E4";
-    case "v": return "F4";
-    case "g": return "F#4";
-    case "b": return "G4";
-    case "h": return "G#4";
-    case "n": return "A4";
-    case "j": return "A#4";
-    case "m": return "B4";
-    case ",": return "C5";
+    case "z": return 60;
+    case "s": return 61;
+    case "x": return 62;
+    case "d": return 63;
+    case "c": return 64;
+    case "v": return 65;
+    case "g": return 66;
+    case "b": return 67;
+    case "h": return 68;
+    case "n": return 69;
+    case "j": return 70;
+    case "m": return 71;
+    case ",": return 72;
     default: return null;
   }
 }
