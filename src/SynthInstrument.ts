@@ -14,16 +14,16 @@ export class SynthInstrument extends Instrument {
     return this;
   }
 
-  attack(notes: Tone.Unit.MidiNote[], velocity: Tone.Unit.NormalRange, time: Tone.Unit.Time = Tone.now()): void {
+  attack(notes: number[], velocity: Tone.Unit.NormalRange, time: Tone.Unit.Time = Tone.now()): void {
     let freq = Tone.Frequency(notes[0], "midi").toFrequency();
     this.synth.triggerAttack(freq, time, velocity);
   }
 
-  release(_: Tone.Unit.MidiNote[], time: Tone.Unit.Time = Tone.now()): void {
+  release(_: number[], time: Tone.Unit.Time = Tone.now()): void {
     this.synth.triggerRelease(time);
   }
 
-  attackRelease(notes: Tone.Unit.MidiNote[], duration: Tone.Unit.Time, velocity: Tone.Unit.NormalRange, time: Tone.Unit.Time = Tone.now()): void {
+  attackRelease(notes: number[], duration: Tone.Unit.Time, velocity: Tone.Unit.NormalRange, time: Tone.Unit.Time = Tone.now()): void {
     let freq = Tone.Frequency(notes[0], "midi").toFrequency();
     this.synth.triggerAttackRelease(freq, duration, time, velocity)
   }

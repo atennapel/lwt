@@ -1,14 +1,21 @@
 <style>
-  #output {
+  #display {
+    display: grid;
+    grid-template-columns: repeat(8, 50px);
+  }
+  .tile {
     font-family: monospace;
     font-size: 16;
+    width: 50px;
+    height: 50px;
+    display: flex;
     border: 1px solid black;
-    padding: 5px;
-    white-space: pre;
+  }
+  .note-label {
+    align-self: center;
   }
 </style>
 <script src="dist/bundle.js"></script>
 <button id="midi">Connect MIDI input</button>
-<div id="output"></div>
-<textarea id="instrument"></textarea><br/>
-<button id="load_instrument">Load instrument</button>
+<button id="start">Start</button>
+<div id="display"></div>

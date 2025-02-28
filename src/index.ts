@@ -2,30 +2,16 @@ import * as Tone from "tone";
 import { SynthInstrument } from "./SynthInstrument";
 import { PolySynthInstrument } from "./PolySynthInstrument";
 import { Instrument } from "./Instrument";
+import { Display } from "./Display";
+import { State } from "./state/State";
 
 window.addEventListener("load", () => {
-  let clicked = false;
-  let beat = 0;
-  let playing = false;
-  let selected = 0;
-  const steps: (Tone.Unit.MidiNote | null)[] = new Array(16);
-
-  const output = document.getElementById("output")!;
-  output.innerText = "Click here";
-  function draw() {
-    let text = "";
-    for (let i = 0; i < 16; i++) {
-      const note = steps[i];
-      let noteStr = note ? Tone.Frequency(note, "midi").toNote().toString() : "---";
-      if (noteStr.length == 2) noteStr = `${noteStr[0]}-${noteStr[1]}`;
-      text += `${i == beat ? ">" : " "} ${i.toString(16).toUpperCase()} ${i == selected ? `[${noteStr}]` : ` ${noteStr}`}\n`;
-    }
-    output.innerText = text;
-  }
-
-  output.addEventListener("click", async () => {
-    if (clicked) return;
-    clicked = true;
+  const start = document.getElementById("start")!
+  start.addEventListener("click", async () => {
+    start.remove();
+    const state = new State(16);
+    const display = new Display(state, document.getElementById("display")! as HTMLDivElement);
+    display.initialize((x, y) => { state.flip(x + y * 8); display.refresh() });
 
     Tone.setContext(new Tone.Context({ latencyHint: "interactive", lookAhead: 0 }));
 
@@ -35,20 +21,11 @@ window.addEventListener("load", () => {
 
     const synth = new SynthInstrument().toDestination();
 
-    let activeSynth: Instrument | null = null;
+    let activeSynth: Instrument = new PolySynthInstrument().toDestination();
 
     const transport = Tone.getTransport()
     transport.bpm.value = 120;
     transport.scheduleRepeat(tick, "16n");
-
-    const noteActive: Map<Tone.Unit.MidiNote, boolean> = new Map();
-
-    const instrumentArea = document.getElementById("instrument")!;
-    document.getElementById("load_instrument")!.addEventListener("click", () => {
-      const txt = instrumentArea.innerText;
-      console.log(txt);
-      activeSynth = new PolySynthInstrument().toDestination();
-    });
 
     document.getElementById("midi")!.addEventListener("click", async () => {
       let access = await navigator.requestMIDIAccess();
@@ -67,85 +44,46 @@ window.addEventListener("load", () => {
 
     window.addEventListener("keydown", event => {
       if (event.key == " ") {
-        if (playing) {
-          playing = false;
+        if (state.isPlaying()) {
+          state.stop();
           transport.stop();
+          display.refresh();
         } else {
-          playing = true;
+          state.start();
           transport.start();
-        }
-      } else if (event.key == "Enter") {
-        if (!steps[selected]) {
-          steps[selected] = 60;
-        } else {
-          steps[selected] = null;
-        }
-        draw();
-      } else if (event.key == "ArrowUp") {
-        if (selected > 0) {
-          selected--;
-          draw();
-        }
-      } else if (event.key == "ArrowDown") {
-        if (selected < 15) {
-          selected++;
-          draw();
-        }
-      } else if (event.key == "ArrowLeft") {
-        const current = steps[selected];
-        if (current && current > 12) {
-          steps[selected]!--;
-          draw();
-        }
-      } else if (event.key == "ArrowRight") {
-        const current = steps[selected];
-        if (current && current < 127) {
-          steps[selected]!++;
-          draw();
+          display.refresh();
         }
       } else {
-        var note = keyToNote(event.key);
-        if (note && !noteActive.get(note)) {
-          noteActive.set(note, true);
-          activeSynth?.attack([note], 0.8);
+        switch (event.key) {
+          case "q": state.flip(0); break;
+          case "w": state.flip(1); break;
+          case "e": state.flip(2); break;
+          case "r": state.flip(3); break;
+          case "t": state.flip(4); break;
+          case "y": state.flip(5); break;
+          case "u": state.flip(6); break;
+          case "i": state.flip(7); break;
+          case "a": state.flip(8); break;
+          case "s": state.flip(9); break;
+          case "d": state.flip(10); break;
+          case "f": state.flip(11); break;
+          case "g": state.flip(12); break;
+          case "h": state.flip(13); break;
+          case "j": state.flip(14); break;
+          case "k": state.flip(15); break;
+          default: break;
         }
-      }
-    });
-
-    window.addEventListener("keyup", event => {
-      var note = keyToNote(event.key);
-      if (note && noteActive.get(note)) {
-        noteActive.set(note, false);
-        activeSynth?.release([note]);
+        display.refresh();
       }
     });
 
     function tick(time: Tone.Unit.Seconds) {
-      beat = (beat + 1) % 16;
-      const current = steps[beat];
-      if (current) synth.attackRelease([current], "8n", 0.8, time);
-      draw();
+      display.refresh();
+      const current = state.getCurrent();
+      if (current >= 0) synth.attackRelease([current], "8n", 0.8, time);
+      state.tick();
     }
 
-    draw();
+    display.refresh();
   });
 });
-
-function keyToNote(key: string): Tone.Unit.MidiNote | null {
-  switch (key) {
-    case "z": return 60;
-    case "s": return 61;
-    case "x": return 62;
-    case "d": return 63;
-    case "c": return 64;
-    case "v": return 65;
-    case "g": return 66;
-    case "b": return 67;
-    case "h": return 68;
-    case "n": return 69;
-    case "j": return 70;
-    case "m": return 71;
-    case ",": return 72;
-    default: return null;
-  }
-}
