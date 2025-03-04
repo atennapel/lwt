@@ -22,6 +22,14 @@ export class State {
     return this.pattern.get(index);
   }
 
+  getNote(index: number): number {
+    return this.pattern.getNote(index);
+  }
+
+  setNote(index: number, note: number): void {
+    this.pattern.set(index, note, this.pattern.isEnabled(index));
+  }
+
   // returns -1 if disabled
   getCurrent(): number {
     return this.pattern.get(this.beat);
@@ -44,7 +52,7 @@ export class State {
   }
 
   start(): void { this.setPlaying(true) }
-  
+
   stop(): void {
     this.beat = 0;
     this.setPlaying(false);

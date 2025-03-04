@@ -4,14 +4,16 @@ import { PolySynthInstrument } from "./PolySynthInstrument";
 import { Instrument } from "./Instrument";
 import { Display } from "./Display";
 import { State } from "./state/State";
+import { SamplerInstrument } from "./SamplerInstrument";
 
 window.addEventListener("load", () => {
   const start = document.getElementById("start")!
   start.addEventListener("click", async () => {
+    let lastIx = 0;
     start.remove();
     const state = new State(16);
     const display = new Display(state, document.getElementById("display")! as HTMLDivElement);
-    display.initialize((x, y) => { state.flip(x + y * 8); display.refresh() });
+    display.initialize((x, y) => { lastIx = x + y * 8; state.flip(lastIx); display.refresh() });
 
     Tone.setContext(new Tone.Context({ latencyHint: "interactive", lookAhead: 0 }));
 
@@ -19,9 +21,14 @@ window.addEventListener("load", () => {
     await Tone.start();
     console.log("Started Tone");
 
-    const synth = new SynthInstrument().toDestination();
+    // const synth = new SynthInstrument().toDestination();
 
-    let activeSynth: Instrument = new PolySynthInstrument().toDestination();
+    let activeSynth: Instrument = new SamplerInstrument(
+      "https://tonejs.github.io/audio/drum-samples/KPR77/",
+      { "C4": "kick.mp3", "D4": "snare.mp3", "E4": "hihat.mp3", "F4": "tom1.mp3", "G4": "tom2.mp3", "A4": "tom3.mp3" },
+    ).toDestination(); // new PolySynthInstrument().toDestination();
+
+    const synth = activeSynth;
 
     const transport = Tone.getTransport()
     transport.bpm.value = 120;
@@ -55,22 +62,26 @@ window.addEventListener("load", () => {
         }
       } else {
         switch (event.key) {
-          case "q": state.flip(0); break;
-          case "w": state.flip(1); break;
-          case "e": state.flip(2); break;
-          case "r": state.flip(3); break;
-          case "t": state.flip(4); break;
-          case "y": state.flip(5); break;
-          case "u": state.flip(6); break;
-          case "i": state.flip(7); break;
-          case "a": state.flip(8); break;
-          case "s": state.flip(9); break;
-          case "d": state.flip(10); break;
-          case "f": state.flip(11); break;
-          case "g": state.flip(12); break;
-          case "h": state.flip(13); break;
-          case "j": state.flip(14); break;
-          case "k": state.flip(15); break;
+          case "q": lastIx = 0; state.flip(0); break;
+          case "w": lastIx = 1; state.flip(1); break;
+          case "e": lastIx = 2; state.flip(2); break;
+          case "r": lastIx = 3; state.flip(3); break;
+          case "t": lastIx = 4; state.flip(4); break;
+          case "y": lastIx = 5; state.flip(5); break;
+          case "u": lastIx = 6; state.flip(6); break;
+          case "i": lastIx = 7; state.flip(7); break;
+          case "a": lastIx = 8; state.flip(8); break;
+          case "s": lastIx = 9; state.flip(9); break;
+          case "d": lastIx = 10; state.flip(10); break;
+          case "f": lastIx = 11; state.flip(11); break;
+          case "g": lastIx = 12; state.flip(12); break;
+          case "h": lastIx = 13; state.flip(13); break;
+          case "j": lastIx = 14; state.flip(14); break;
+          case "k": lastIx = 15; state.flip(15); break;
+
+          case "z": state.setNote(lastIx, state.getNote(lastIx) - 1); break;
+          case "x": state.setNote(lastIx, state.getNote(lastIx) + 1); break;
+
           default: break;
         }
         display.refresh();

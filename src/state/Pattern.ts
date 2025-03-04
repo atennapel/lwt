@@ -36,4 +36,12 @@ export class Pattern {
   get(index: number): number {
     return this.enabled[index] ? this.notes[index] : -1;
   }
+
+  getNote(index: number): number {
+    return this.notes[index];
+  }
+
+  isEnabled(index: number): boolean {
+    return this.enabled[index];
+  }
 }
