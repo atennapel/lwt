@@ -25,14 +25,20 @@ window.addEventListener("load", () => {
 
     let midiInstrument = 0;
     let currentStep = 0;
-    function showCurrentStep() { currentStepE.innerText = `current step: ${currentStep}` }
-    showCurrentStep();
+    let currentPart = 0;
     let currentPattern = 0;
-    let patterns: (string | null)[][] = [];
-    let patternInstruments: number[] = [0];
-    const firstPattern = new Array(16);
-    for (let i = 0; i < 16; i++) firstPattern[i] = null;
-    patterns.push(firstPattern);
+    let patterns: (string | null)[][][] = [[]];
+    let patternInstruments: number[][] = [[0]];
+    let song: number[] = [];
+    let playingSong = false;
+    let songIx = 0;
+    const firstPattern = newPattern();
+    patterns[0].push(firstPattern);
+    
+    function showStatus() {
+      currentStepE.innerText = `midi ${midiInstrument} | part ${currentPart} | pattern ${currentPattern} | step ${currentStep}${playingSong ? ` | song ${songIx}` : ""}`;
+    }
+    showStatus();
 
     function createDrumsSampler(sample: string): Tone.Sampler {
       return new Tone.Sampler({
@@ -80,15 +86,29 @@ window.addEventListener("load", () => {
     function process(msg_: string) {
       try {
         const msg = msg_.trim();
-        if (msg == "start") {
+        if (msg == "start song") {
+          if (song.length == 0) {
+            show("song is empty");
+          } else {
+            currentStep = 0;
+            songIx = 0;
+            playingSong = true;
+            transport.start();
+            show("started song");
+          }
+        } else if (msg == "stop song") {
+          playingSong = false;
+          transport.stop();
+          songIx = 0;
+          show("stopped song");
+        } else if (msg == "start") {
           currentStep = 0;
           transport.start();
-          show("started loop");
+          show("started pattern");
         } else if (msg == "stop") {
           transport.stop();
           currentStep = 0;
-          showCurrentStep();
-          show("stopped loop");
+          show("stopped pattern");
         } else if (msg.startsWith("bpm")) {
           const bpm = msg.substring(3).trim();
           if (bpm.length > 0) transport.bpm.value = +bpm;
@@ -105,44 +125,59 @@ window.addEventListener("load", () => {
           const swing = msg.substring(5).trim();
           if (swing.length > 0) transport.swing = +swing;
           show(`swing: ${transport.swing}`);
+        } else if (msg.startsWith("part")) {
+          const ix = msg.substring(4).trim();
+          if (ix.length > 0) {
+            currentPart = +ix;
+            currentPattern = 0;
+            if (!patterns[currentPart])
+              patterns[currentPart] = [newPattern()];
+              patternInstruments[currentPart] = [0];
+          }
+          show(`current part: ${currentPart}`);
         } else if (msg.startsWith("set pattern")) {
           const ix = msg.substring(11).trim();
           if (ix.length > 0) {
             currentPattern = +ix;
-            if (!patterns[currentPattern]) {
-              const newPattern = new Array(16);
-              for (let i = 0; i < 16; i++) newPattern[i] = null;
-              patterns[currentPattern] = newPattern;
-            }
+            if (!patterns[currentPart][currentPattern])
+              patterns[currentPart][currentPattern] = newPattern();
           }
           show(`current pattern: ${currentPattern}`);
         } else if (msg.startsWith("patterns")) {
-          const ps: string[] = new Array(patterns.length);
-          for (let p = 0; p < patterns.length; p++) {
-            let pattern = patterns[p];
+          const ps: string[] = new Array(patterns[currentPart].length);
+          for (let p = 0; p < patterns[currentPart].length; p++) {
+            let pattern = patterns[currentPart][p];
             if (!pattern) {
-              pattern = new Array(16);
-              for (let i = 0; i < 16; i++) pattern[i] = null;
-              patternInstruments[p] = 0;
-              patterns[p] = pattern;
+              pattern = newPattern();
+              patternInstruments[currentPart][p] = 0;
+              patterns[currentPart][p] = pattern;
             }
-            ps[p] = `${p}: ${patternStr(pattern)} (I${patternInstruments[p]})`;
+            ps[p] = `${p == currentPattern ? ">" : " "}${p}: ${patternStr(pattern)} (I${patternInstruments[currentPart][p]})`;
           }
           show(`patterns:\n${ps.join("\n")}`);
         } else if (msg.startsWith("pattern")) {
           const newNotes = msg.substring(7).trim();
           if (newNotes.length > 0) {
             const parsed = newNotes.split(" ").map(n => n == "-" ? null : n);
-            patterns[currentPattern] = parsed;
-            while (patterns[currentPattern].length < 16)
-              patterns[currentPattern] = patterns[currentPattern].concat(patterns[currentPattern]);
-            while (patterns[currentPattern].length > 16) patterns[currentPattern].pop();
+            patterns[currentPart][currentPattern] = parsed;
+            while (patterns[currentPart][currentPattern].length < 16)
+              patterns[currentPart][currentPattern] = patterns[currentPart][currentPattern].concat(patterns[currentPart][currentPattern]);
+            while (patterns[currentPart][currentPattern].length > 16) patterns[currentPart][currentPattern].pop();
           }
-          show(`pattern: ${patternStr(patterns[currentPattern])}`);
+          show(`pattern: ${patternStr(patterns[currentPart][currentPattern])}`);
         } else if (msg.startsWith("instrument")) {
           const ix = msg.substring(10).trim();
-          if (ix.length > 0) patternInstruments[currentPattern] = +ix;
-          show(`current instrument: ${patternInstruments[currentPattern]}`);
+          if (ix.length > 0) patternInstruments[currentPart][currentPattern] = +ix;
+          show(`current instrument: ${patternInstruments[currentPart][currentPattern]}`);
+        } else if (msg.startsWith("queue")) {
+          const cmd = msg.substring(5).trim();
+          queue.push(cmd);
+          show(`queued: ${cmd}`)
+        } else if (msg.startsWith("song")) {
+          const newSong = msg.substring(5).trim();
+          if (newSong.length > 0)
+            song = newSong.split(" ").map(n => +n.trim());
+          show(`song: ${song.join(" ")}`);
         } else if (msg == "") {
           // do nothing
         } else {
@@ -152,26 +187,52 @@ window.addEventListener("load", () => {
         show(`error: ${err}`);
       }
       inputE.value = "";
+      showStatus();
     }
 
+    let queue: string[] = [];
+
     function tick(time: Tone.Unit.Seconds) {
-      showCurrentStep();
-      for (let p = 0; p < patterns.length; p++) {
-        if (patterns[p]) {
-          const note = patterns[p][currentStep] || null;
+      showStatus();
+
+      // perform queued commands
+      if (currentStep == 0) {
+        const curQueue = queue;
+        queue = [];
+        for (let i = 0; i < curQueue.length; i++)
+          process(curQueue[i]);
+      }
+
+      // play patterns
+      const part = playingSong ? song[songIx] : currentPart;
+      for (let p = 0; p < patterns[part].length; p++) {
+        if (patterns[part][p]) {
+          const note = patterns[part][p][currentStep] || null;
           if (note) {
-            const instrument = instruments[patternInstruments[p] || 0];
+            const instrument = instruments[patternInstruments[part][p] || 0];
             instrument.triggerAttackRelease(note, "16n", time, 0.8);
           }
         }
       }
+
       currentStep = (currentStep + 1) % 16;
+
+      if (playingSong && currentStep == 0)
+        songIx = (songIx + 1) % song.length;
     }
 
     function patternStr(p: (string | null)[]): string {
-      return p.map(n => n ? (n.length < 3 ? `${n} ` : n) : "---").join(" ");
+      return p.map((n, ix) =>
+        (n ? (n.length < 3 ? `${n} ` : n) : "---") + (ix % 4 == 3 && ix != 15 ? " | " : "")
+      ).join(" ");
     }
-    
+
+    function newPattern(): (string | null)[] {
+      const pattern = new Array(16);
+      for (let i = 0; i < 16; i++) pattern[i] = null;
+      return pattern;
+    }
+
     // midi
     midiE.addEventListener("click", async () => {
       let access = await navigator.requestMIDIAccess();
