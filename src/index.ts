@@ -1,39 +1,176 @@
 import * as Tone from "tone";
-import { SynthInstrument } from "./SynthInstrument";
-import { PolySynthInstrument } from "./PolySynthInstrument";
-import { Instrument } from "./Instrument";
-import { Display } from "./Display";
-import { State } from "./state/State";
-import { SamplerInstrument } from "./SamplerInstrument";
 
 window.addEventListener("load", () => {
-  const start = document.getElementById("start")!
-  start.addEventListener("click", async () => {
-    let lastIx = 0;
-    start.remove();
-    const state = new State(16);
-    const display = new Display(state, document.getElementById("display")! as HTMLDivElement);
-    display.initialize((x, y) => { lastIx = x + y * 8; state.flip(lastIx); display.refresh() });
+  const outputE = document.getElementById("output")! as HTMLPreElement
+  function show(msg: string) { outputE.innerText = msg }
+  const currentStepE = document.getElementById("currentStep")! as HTMLDivElement
+  const inputE = document.getElementById("input")! as HTMLInputElement
+  const sendE = document.getElementById("send")! as HTMLButtonElement
+  inputE.disabled = true;
+  sendE.disabled = true;
+  const startE = document.getElementById("start")! as HTMLButtonElement
+  startE.addEventListener("click", async () => {
+    startE.remove();
 
     Tone.setContext(new Tone.Context({ latencyHint: "interactive", lookAhead: 0 }));
 
-    console.log("Starting Tone...");
+    show("starting...");
     await Tone.start();
-    console.log("Started Tone");
+    show("started!");
 
-    // const synth = new SynthInstrument().toDestination();
+    inputE.disabled = false;
+    sendE.disabled = false;
 
-    let activeSynth: Instrument = new SamplerInstrument(
-      "https://tonejs.github.io/audio/drum-samples/KPR77/",
-      { "C4": "kick.mp3", "D4": "snare.mp3", "E4": "hihat.mp3", "F4": "tom1.mp3", "G4": "tom2.mp3", "A4": "tom3.mp3" },
-    ).toDestination(); // new PolySynthInstrument().toDestination();
+    let midiInstrument = 0;
+    let currentStep = 0;
+    function showCurrentStep() { currentStepE.innerText = `current step: ${currentStep}` }
+    showCurrentStep();
+    let currentPattern = 0;
+    let patterns: (string | null)[][] = [];
+    let patternInstruments: number[] = [0];
+    const firstPattern = new Array(16);
+    for (let i = 0; i < 16; i++) firstPattern[i] = null;
+    patterns.push(firstPattern);
 
-    const synth = activeSynth;
+    function createDrumsSampler(sample: string): Tone.Sampler {
+      return new Tone.Sampler({
+        urls: {
+          "C4": "kick.mp3",
+          "D4": "snare.mp3",
+          "E4": "hihat.mp3",
+          "F4": "tom1.mp3",
+          "G4": "tom2.mp3",
+          "A4": "tom3.mp3",
+        },
+        baseUrl: `https://tonejs.github.io/audio/drum-samples/${sample}/`,
+      });
+    }
+    const instruments = [
+      createDrumsSampler("4OP-FM"),
+      createDrumsSampler("Bongos"),
+      createDrumsSampler("CR78"),
+      createDrumsSampler("KPR77"),
+      createDrumsSampler("Kit3"),
+      createDrumsSampler("Kit8"),
+      createDrumsSampler("LINN"),
+      createDrumsSampler("R8"),
+      createDrumsSampler("Stark"),
+      createDrumsSampler("Techno"),
+      createDrumsSampler("TheCheebacabra1"),
+      createDrumsSampler("TheCheebacabra2"),
+      createDrumsSampler("acoustic-kit"),
+      createDrumsSampler("breakbeat13"),
+      createDrumsSampler("breakbeat8"),
+      createDrumsSampler("breakbeat9"),
+      new Tone.PolySynth(Tone.Synth), // 16
+    ];
+    instruments.forEach(i => i.toDestination());
 
     const transport = Tone.getTransport()
     transport.bpm.value = 120;
+    transport.swing = 0;
     transport.scheduleRepeat(tick, "16n");
+    transport.stop();
 
+    inputE.addEventListener("keyup", event => { if (event.key == "Enter") process(inputE.value) });
+    sendE.addEventListener("click", _ => process(inputE.value));
+
+    function process(msg_: string) {
+      try {
+        const msg = msg_.trim();
+        if (msg == "start") {
+          currentStep = 0;
+          transport.start();
+          show("started loop");
+        } else if (msg == "stop") {
+          transport.stop();
+          currentStep = 0;
+          showCurrentStep();
+          show("stopped loop");
+        } else if (msg.startsWith("bpm")) {
+          const bpm = msg.substring(3).trim();
+          if (bpm.length > 0) transport.bpm.value = +bpm;
+          show(`bpm: ${transport.bpm.value}`);
+        } else if (msg.startsWith("midi")) {
+          const bpm = msg.substring(4).trim();
+          if (bpm.length > 0) midiInstrument = +bpm;
+          show(`midi instrument: ${midiInstrument}`);
+        } else if (msg.startsWith("swingdiv")) {
+          const swingDiv = msg.substring(8).trim();
+          if (swingDiv.length > 0) transport.swingSubdivision = swingDiv as Tone.Unit.Subdivision;
+          show(`swing subdivision: ${transport.swingSubdivision}`);
+        } else if (msg.startsWith("swing")) {
+          const swing = msg.substring(5).trim();
+          if (swing.length > 0) transport.swing = +swing;
+          show(`swing: ${transport.swing}`);
+        } else if (msg.startsWith("set pattern")) {
+          const ix = msg.substring(11).trim();
+          if (ix.length > 0) {
+            currentPattern = +ix;
+            if (!patterns[currentPattern]) {
+              const newPattern = new Array(16);
+              for (let i = 0; i < 16; i++) newPattern[i] = null;
+              patterns[currentPattern] = newPattern;
+            }
+          }
+          show(`current pattern: ${currentPattern}`);
+        } else if (msg.startsWith("patterns")) {
+          const ps: string[] = new Array(patterns.length);
+          for (let p = 0; p < patterns.length; p++) {
+            let pattern = patterns[p];
+            if (!pattern) {
+              pattern = new Array(16);
+              for (let i = 0; i < 16; i++) pattern[i] = null;
+              patternInstruments[p] = 0;
+              patterns[p] = pattern;
+            }
+            ps[p] = `${p}: ${patternStr(pattern)} (I${patternInstruments[p]})`;
+          }
+          show(`patterns:\n${ps.join("\n")}`);
+        } else if (msg.startsWith("pattern")) {
+          const newNotes = msg.substring(7).trim();
+          if (newNotes.length > 0) {
+            const parsed = newNotes.split(" ").map(n => n == "-" ? null : n);
+            patterns[currentPattern] = parsed;
+            while (patterns[currentPattern].length < 16)
+              patterns[currentPattern] = patterns[currentPattern].concat(patterns[currentPattern]);
+            while (patterns[currentPattern].length > 16) patterns[currentPattern].pop();
+          }
+          show(`pattern: ${patternStr(patterns[currentPattern])}`);
+        } else if (msg.startsWith("instrument")) {
+          const ix = msg.substring(10).trim();
+          if (ix.length > 0) patternInstruments[currentPattern] = +ix;
+          show(`current instrument: ${patternInstruments[currentPattern]}`);
+        } else if (msg == "") {
+          // do nothing
+        } else {
+          show(`invalid message: ${msg}`);
+        }
+      } catch (err) {
+        show(`error: ${err}`);
+      }
+      inputE.value = "";
+    }
+
+    function tick(time: Tone.Unit.Seconds) {
+      showCurrentStep();
+      for (let p = 0; p < patterns.length; p++) {
+        if (patterns[p]) {
+          const note = patterns[p][currentStep] || null;
+          if (note) {
+            const instrument = instruments[patternInstruments[p] || 0];
+            instrument.triggerAttackRelease(note, "16n", time, 0.8);
+          }
+        }
+      }
+      currentStep = (currentStep + 1) % 16;
+    }
+
+    function patternStr(p: (string | null)[]): string {
+      return p.map(n => n ? (n.length < 3 ? `${n} ` : n) : "---").join(" ");
+    }
+    
+    // midi
     document.getElementById("midi")!.addEventListener("click", async () => {
       let access = await navigator.requestMIDIAccess();
       for (let device of access.inputs.values()) device.onmidimessage = onMidiMessage;
@@ -41,60 +178,13 @@ window.addEventListener("load", () => {
         let [id, note, vel] = msg.data!;
         let NOTE_ON = 144;
         let NOTE_OFF = 128;
+        const tone = Tone.Frequency(note, "midi").toNote();
         if (id == NOTE_ON) {
-          activeSynth?.attack([note as Tone.Unit.MidiNote], vel / 127 * 0.8);
+          instruments[midiInstrument].triggerAttack(tone, Tone.now(), vel / 127 * 0.8);
         } else if (id == NOTE_OFF) {
-          activeSynth?.release([note as Tone.Unit.MidiNote]);
+          instruments[midiInstrument].triggerRelease(tone, Tone.now());
         }
       }
     });
-
-    window.addEventListener("keydown", event => {
-      if (event.key == " ") {
-        if (state.isPlaying()) {
-          state.stop();
-          transport.stop();
-          display.refresh();
-        } else {
-          state.start();
-          transport.start();
-          display.refresh();
-        }
-      } else {
-        switch (event.key) {
-          case "q": lastIx = 0; state.flip(0); break;
-          case "w": lastIx = 1; state.flip(1); break;
-          case "e": lastIx = 2; state.flip(2); break;
-          case "r": lastIx = 3; state.flip(3); break;
-          case "t": lastIx = 4; state.flip(4); break;
-          case "y": lastIx = 5; state.flip(5); break;
-          case "u": lastIx = 6; state.flip(6); break;
-          case "i": lastIx = 7; state.flip(7); break;
-          case "a": lastIx = 8; state.flip(8); break;
-          case "s": lastIx = 9; state.flip(9); break;
-          case "d": lastIx = 10; state.flip(10); break;
-          case "f": lastIx = 11; state.flip(11); break;
-          case "g": lastIx = 12; state.flip(12); break;
-          case "h": lastIx = 13; state.flip(13); break;
-          case "j": lastIx = 14; state.flip(14); break;
-          case "k": lastIx = 15; state.flip(15); break;
-
-          case "z": state.setNote(lastIx, state.getNote(lastIx) - 1); break;
-          case "x": state.setNote(lastIx, state.getNote(lastIx) + 1); break;
-
-          default: break;
-        }
-        display.refresh();
-      }
-    });
-
-    function tick(time: Tone.Unit.Seconds) {
-      display.refresh();
-      const current = state.getCurrent();
-      if (current >= 0) synth.attackRelease([current], "8n", 0.8, time);
-      state.tick();
-    }
-
-    display.refresh();
   });
 });
