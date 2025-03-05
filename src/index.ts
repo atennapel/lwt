@@ -8,18 +8,20 @@ window.addEventListener("load", () => {
   const sendE = document.getElementById("send")! as HTMLButtonElement
   inputE.disabled = true;
   sendE.disabled = true;
+  const midiE = document.getElementById("midi")! as HTMLButtonElement
+  midiE.disabled = true;
   const startE = document.getElementById("start")! as HTMLButtonElement
   startE.addEventListener("click", async () => {
-    startE.remove();
-
     Tone.setContext(new Tone.Context({ latencyHint: "interactive", lookAhead: 0 }));
 
     show("starting...");
     await Tone.start();
     show("started!");
 
+    startE.disabled = true;
     inputE.disabled = false;
     sendE.disabled = false;
+    midiE.disabled = false;
 
     let midiInstrument = 0;
     let currentStep = 0;
@@ -171,7 +173,7 @@ window.addEventListener("load", () => {
     }
     
     // midi
-    document.getElementById("midi")!.addEventListener("click", async () => {
+    midiE.addEventListener("click", async () => {
       let access = await navigator.requestMIDIAccess();
       for (let device of access.inputs.values()) device.onmidimessage = onMidiMessage;
       function onMidiMessage(msg: MIDIMessageEvent) {
