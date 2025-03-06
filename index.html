@@ -16,3 +16,30 @@
 <input id="input" autocomplete="off"></input>
 <button id="send">Send</button>
 <pre id="output" class="output">click start...</pre>
+<button id="show-script">Show scripting</button>
+<br/>
+<textarea id="script" class="output" style="visibility: hidden;">
+-- part 0
+part 0
+
+set pattern 0
+instrument 0
+pattern c4 - d4 -
+
+set pattern 1
+instrument 7
+pattern e4
+
+-- part 1
+copy part 0 1
+part 1
+
+set pattern 2
+instrument 16
+pattern c4 - d4 e4 f4 - - -
+
+-- song
+song 0 0 1 1
+</textarea>
+<br/>
+<button id="run-script" style="visibility: hidden;">Run script</button>

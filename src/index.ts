@@ -1,16 +1,23 @@
 import * as Tone from "tone";
 
 window.addEventListener("load", () => {
-  const outputE = document.getElementById("output")! as HTMLPreElement
+  // rest
+  const outputE = document.getElementById("output")! as HTMLPreElement;
   function show(msg: string) { outputE.innerText = msg }
-  const currentStepE = document.getElementById("currentStep")! as HTMLDivElement
-  const inputE = document.getElementById("input")! as HTMLInputElement
-  const sendE = document.getElementById("send")! as HTMLButtonElement
+  const currentStepE = document.getElementById("currentStep")! as HTMLDivElement;
+  const inputE = document.getElementById("input")! as HTMLInputElement;
+  const sendE = document.getElementById("send")! as HTMLButtonElement;
   inputE.disabled = true;
   sendE.disabled = true;
-  const midiE = document.getElementById("midi")! as HTMLButtonElement
+  const midiE = document.getElementById("midi")! as HTMLButtonElement;
   midiE.disabled = true;
-  const startE = document.getElementById("start")! as HTMLButtonElement
+  const showScriptE = document.getElementById("show-script")! as HTMLButtonElement;
+  showScriptE.disabled = true;
+  const scriptE = document.getElementById("script")! as HTMLTextAreaElement;
+  scriptE.disabled = true;
+  const runScriptE = document.getElementById("run-script")! as HTMLButtonElement;
+  runScriptE.disabled = true;
+  const startE = document.getElementById("start")! as HTMLButtonElement;
   startE.addEventListener("click", async () => {
     Tone.setContext(new Tone.Context({ latencyHint: "interactive", lookAhead: 0 }));
 
@@ -22,6 +29,31 @@ window.addEventListener("load", () => {
     inputE.disabled = false;
     sendE.disabled = false;
     midiE.disabled = false;
+
+    // scripting start
+    showScriptE.disabled = false;
+    scriptE.disabled = false;
+    runScriptE.disabled = false;
+    let scriptShown = false;
+    showScriptE.addEventListener("click", () => {
+      if (scriptShown) {
+        showScriptE.textContent = "Show scripting";
+        scriptShown = false;
+        scriptE.style.visibility = "hidden";
+        runScriptE.style.visibility = "hidden";
+      } else {
+        showScriptE.textContent = "Hide scripting";
+        scriptShown = true;
+        scriptE.style.visibility = "visible";
+        runScriptE.style.visibility = "visible";
+      }
+    });
+    runScriptE.addEventListener("click", () => {
+      const content = (scriptE.value || "").split("\n");
+      content.forEach(line => process(line));
+      show(`executed ${content.length} lines`);
+    });
+    // scripting end
 
     let midiInstrument = 0;
     let currentStep = 0;
@@ -130,9 +162,10 @@ window.addEventListener("load", () => {
           if (ix.length > 0) {
             currentPart = +ix;
             currentPattern = 0;
-            if (!patterns[currentPart])
+            if (!patterns[currentPart]) {
               patterns[currentPart] = [newPattern()];
               patternInstruments[currentPart] = [0];
+            }
           }
           show(`current part: ${currentPart}`);
         } else if (msg.startsWith("set pattern")) {
@@ -178,7 +211,14 @@ window.addEventListener("load", () => {
           if (newSong.length > 0)
             song = newSong.split(" ").map(n => +n.trim());
           show(`song: ${song.join(" ")}`);
-        } else if (msg == "") {
+        } else if (msg.startsWith("copy part")) {
+          const args = msg.substring(9).trim().split(" ").map(a => +a);
+          const src = args[0];
+          const tgt = args[1];
+          patterns[tgt] = patterns[src].map(p => p.slice());
+          patternInstruments[tgt] = patternInstruments[src].slice();
+          show(`copied part ${src} to ${tgt}`);
+        } else if (msg == "" || msg.startsWith("--")) {
           // do nothing
         } else {
           show(`invalid message: ${msg}`);
